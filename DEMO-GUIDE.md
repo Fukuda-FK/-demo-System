@@ -28,59 +28,61 @@ http://localhost:3000
 3. 決済情報を入力して「決済を実行」
 4. ✅ 正常に決済が完了することを確認
 
-### シナリオ2: 障害発生と原因特定
+### シナリオ2: フロントエンド障害 (Browser Monitoringデモ)
 
-#### Step 1: 障害発生
+#### Step 1: フロントエンドエラー発生
 1. **🔧 管理画面**タブを開く
-2. 「💥 決済エラーモード ON」ボタンをクリック
-3. ✅ 障害モードが有効になったことを確認
+2. 「🔴 フロントJSエラー ON」ボタンをクリック
+3. 商品をカートに入れて決済を実行
+4. ❌ JavaScriptエラーが発生し、フォーム処理が失敗
+5. 🎥 **New Relic Browser Monitoring**でJSエラーを確認
 
-#### Step 2: 顧客体験（障害の発生）
-1. **商品一覧**で商品をカートに追加
-2. **カート**から決済に進む
-3. 決済を実行
-4. ❌ タイムアウトエラーが発生することを確認
-5. 🎥 **New Relicセッションリプレイ**でお客様の困った様子を確認
+#### Step 2: フロントエンド遅延
+1. 「🟠 フロント遅延 ON」をクリック
+2. 決済を実行（3秒の遅延が発生）
+3. 📊 **New Relic Browser Monitoring**でページ読み込み時間の増加を確認
 
-#### Step 3: New Relicワークロードで原因特定
-1. New Relicワークロード画面を開く
-2. 🔴 User Experience層でアラートを確認
-3. 🔴 Services層でアプリケーションエラーを確認
-4. 🟢 Infrastructure層は正常であることを確認
-5. ➡️ **原因: アプリケーション層の問題**と特定
+### シナリオ3: バックエンド障害 (APMデモ)
 
-#### Step 4: 復旧
-1. **🔧 管理画面**で「✅ 決済エラーモード OFF」をクリック
-2. 決済を再実行して正常動作を確認
-3. 🎥 New Relicで復旧を確認
+#### Step 1: APIタイムアウトエラー
+1. **🔧 管理画面**で「🔴 APIタイムアウト ON」をクリック
+2. 決済を実行
+3. ❌ バックエンドAPIタイムアウトエラーが発生
+4. 📊 **New Relic APM**でタイムアウトエラーを確認
 
-### シナリオ3: パフォーマンス劣化
-
-#### Step 1: スロー障害発生
-1. **🔧 管理画面**で「🐌 スローモード ON」をクリック
+#### Step 2: API遅延
+1. 「🟡 API遅延 ON」をクリック
 2. 決済を実行（2秒の遅延が発生）
-3. 📊 New RelicのAPMで処理時間の増加を確認
+3. 📊 **New Relic APM**で処理時間の増加を確認
+
+### シナリオ4: 複合障害 (ワークロードデモ)
+
+#### Step 1: フロント+バック両方で障害発生
+1. 「🔴 フロントJSエラー ON」と「🔴 APIタイムアウト ON」を両方有効化
+2. 決済を実行
+3. 📊 **New Relicワークロード**で全レイヤーの障害を一目で確認
+   - 🔴 User Experience: フロントエンドエラー
+   - 🔴 Services: バックエンドAPIエラー
+   - 🟢 Infrastructure: インフラは正常
 
 #### Step 2: 復旧
-1. **🔧 管理画面**で「⚡ スローモード OFF」をクリック
-2. 処理時間が正常に戻ることを確認
+1. 「🟢 フロント正常化」と「🟢 API正常化」で全体を復旧
+2. 決済が正常に動作することを確認
 
 ## 🛠️ コマンドライン制御
 
 デモ中にコマンドラインからも障害を制御できます：
 
 ```bash
-# 障害発生
-demo-control.bat failure-on
+# フロントエンド障害
+demo-control.bat frontend-error
+demo-control.bat frontend-slow
+demo-control.bat frontend-normal
 
-# 障害復旧
-demo-control.bat failure-off
-
-# スロー障害
-demo-control.bat slow-on
-
-# スロー復旧
-demo-control.bat slow-off
+# バックエンド障害
+demo-control.bat backend-error
+demo-control.bat backend-slow
+demo-control.bat backend-normal
 
 # 状態確認
 demo-control.bat status
@@ -89,15 +91,15 @@ demo-control.bat status
 ## 📊 New Relicでの確認ポイント
 
 ### ワークロード画面
-- **User Experience**: セッションリプレイでお客様の体験
-- **Services**: APMでアプリケーションエラー
-- **Infrastructure**: インフラの健康状態
+- **User Experience**: Browser Monitoringでフロントエンドの状態を確認
+- **Services**: APMでバックエンドAPIの状態を確認
+- **Infrastructure**: インフラの健康状態を確認
 
 ### 具体的な確認項目
-1. **エラー率の上昇**
-2. **レスポンス時間の増加**
-3. **スループットの低下**
-4. **セッションリプレイでのユーザー行動**
+1. **フロントエンド**: JavaScriptエラー、ページ読み込み時間
+2. **バックエンド**: APIエラー率、レスポンス時間
+3. **インフラ**: CPU、メモリ、データベース接続
+4. **セッションリプレイ**: ユーザーの実際の操作と困った様子
 
 ## 🎭 デモのポイント
 

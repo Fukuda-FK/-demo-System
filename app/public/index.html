@@ -129,12 +129,20 @@
             <p style="color: #666; margin-bottom: 20px;">New Relicワークロードデモ用の障害発生機能</p>
             
             <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                <h3 style="color: #333; margin-bottom: 15px;">🚨 障害シミュレーション</h3>
-                <div style="display: grid; gap: 10px;">
-                    <button onclick="enableFailureMode()" class="btn" style="background: #dc3545;">💥 決済エラーモード ON</button>
-                    <button onclick="disableFailureMode()" class="btn" style="background: #28a745;">✅ 決済エラーモード OFF</button>
-                    <button onclick="enableSlowMode()" class="btn" style="background: #ffc107; color: #000;">🐌 スローモード ON (2秒遅延)</button>
-                    <button onclick="disableSlowMode()" class="btn" style="background: #17a2b8;">⚡ スローモード OFF</button>
+                <h3 style="color: #333; margin-bottom: 15px;">🚨 シナリオ別障害シミュレーション</h3>
+                
+                <h4 style="color: #dc3545; margin: 15px 0 10px 0;">📱 フロントエンド障害 (Browser Monitoring)</h4>
+                <div style="display: grid; gap: 8px; margin-bottom: 20px;">
+                    <button onclick="enableFrontendError()" class="btn" style="background: #dc3545; font-size: 14px;">🔴 フロントJSエラー ON</button>
+                    <button onclick="enableFrontendSlow()" class="btn" style="background: #fd7e14; font-size: 14px;">🟠 フロント遅延 ON</button>
+                    <button onclick="disableFrontendIssues()" class="btn" style="background: #28a745; font-size: 14px;">🟢 フロント正常化</button>
+                </div>
+                
+                <h4 style="color: #6f42c1; margin: 15px 0 10px 0;">🛠️ アプリケーション障害 (APM)</h4>
+                <div style="display: grid; gap: 8px;">
+                    <button onclick="enableBackendError()" class="btn" style="background: #dc3545; font-size: 14px;">🔴 APIタイムアウト ON</button>
+                    <button onclick="enableBackendSlow()" class="btn" style="background: #ffc107; color: #000; font-size: 14px;">🟡 API遅延 ON</button>
+                    <button onclick="disableBackendIssues()" class="btn" style="background: #28a745; font-size: 14px;">🟢 API正常化</button>
                 </div>
             </div>
             
@@ -147,11 +155,11 @@
             <div style="background: #fff3cd; padding: 20px; border-radius: 8px;">
                 <h3 style="color: #333; margin-bottom: 15px;">📋 デモシナリオ</h3>
                 <div style="font-size: 14px; line-height: 1.6;">
-                    <p><strong>1. 正常動作確認:</strong> 商品をカートに入れて決済を実行</p>
-                    <p><strong>2. 障害発生:</strong> 「決済エラーモード ON」をクリック</p>
-                    <p><strong>3. 障害体験:</strong> 決済を実行してタイムアウトエラーを確認</p>
-                    <p><strong>4. 復旧:</strong> 「決済エラーモード OFF」で正常化</p>
-                    <p><strong>5. New Relic:</strong> ワークロードでエラーを確認</p>
+                    <p><strong>🟢 シナリオ1 - 正常動作:</strong> 商品をカートに入れて決済を実行</p>
+                    <p><strong>🔴 シナリオ2 - フロント障害:</strong> 「フロントJSエラー ON」→ 決済実行→ Browserでエラー確認</p>
+                    <p><strong>🟡 シナリオ3 - API障害:</strong> 「APIタイムアウト ON」→ 決済実行→ APMでエラー確認</p>
+                    <p><strong>🟠 シナリオ4 - 複合障害:</strong> フロント+API両方で障害発生</p>
+                    <p><strong>📊 New Relic:</strong> ワークロードで各レイヤーの障害を確認</p>
                 </div>
             </div>
         </div>
@@ -429,6 +437,25 @@
             const payButton = document.getElementById('payButton');
             const resultDiv = document.getElementById('result');
             payButton.disabled = true;
+            
+            // フロントエンド障害シミュレーション
+            if (frontendErrorMode) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '<strong>🔴 フロントエンドエラー発生</strong><div class="transaction-info"><div>JavaScriptエラー: フォーム処理に失敗しました</div></div>';
+                payButton.disabled = false;
+                // 意図的にJSエラーを発生
+                setTimeout(() => {
+                    throw new Error('デモ用フロントエンドエラー: 決済フォーム処理失敗');
+                }, 100);
+                return;
+            }
+            
+            if (frontendSlowMode) {
+                resultDiv.className = 'result processing';
+                resultDiv.innerHTML = '<div class="loading"></div>🐌 フロントエンド遅延中...';
+                await new Promise(resolve => setTimeout(resolve, 3000)); // 3秒遅延
+            }
+            
             resultDiv.className = 'result processing';
             resultDiv.innerHTML = '<div class="loading"></div>決済処理中...';
             
@@ -472,7 +499,7 @@
                 } else {
                     errorCount++;
                     resultDiv.className = 'result error';
-                    resultDiv.innerHTML = `<strong>決済エラー</strong>
+                    resultDiv.innerHTML = `<strong>🔴 バックエンドエラー</strong>
                         <div class="transaction-info">
                             <div>エラー: ${data.error}</div>
                             <div>メッセージ: ${data.message || '不明なエラー'}</div>
@@ -584,8 +611,34 @@
             }); // catchしないのでUnhandled Promise Rejection発生
         }
         
-        // 管理機能
-        async function enableFailureMode() {
+        // グローバル障害フラグ
+        let frontendErrorMode = false;
+        let frontendSlowMode = false;
+        let backendErrorMode = false;
+        let backendSlowMode = false;
+        
+        // フロントエンド障害制御
+        function enableFrontendError() {
+            frontendErrorMode = true;
+            alert('🔴 フロントエンドJSエラーモードが有効になりました\n\n次の決済でJavaScriptエラーが発生します');
+            getSystemStatus();
+        }
+        
+        function enableFrontendSlow() {
+            frontendSlowMode = true;
+            alert('🟠 フロントエンド遅延モードが有効になりました\n\nページ読み込みが遅くなります');
+            getSystemStatus();
+        }
+        
+        function disableFrontendIssues() {
+            frontendErrorMode = false;
+            frontendSlowMode = false;
+            alert('🟢 フロントエンドが正常化されました');
+            getSystemStatus();
+        }
+        
+        // バックエンド障害制御
+        async function enableBackendError() {
             try {
                 const response = await fetch('/admin/failure', {
                     method: 'POST',
@@ -593,29 +646,15 @@
                     body: JSON.stringify({ enable: true })
                 });
                 const data = await response.json();
-                alert(`✅ ${data.message}\n\n次の決済でタイムアウトエラーが発生します`);
+                backendErrorMode = true;
+                alert(`🔴 ${data.message}\n\nAPIタイムアウトエラーが発生します`);
                 getSystemStatus();
             } catch (error) {
                 alert(`❌ エラー: ${error.message}`);
             }
         }
         
-        async function disableFailureMode() {
-            try {
-                const response = await fetch('/admin/failure', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enable: false })
-                });
-                const data = await response.json();
-                alert(`✅ ${data.message}\n\n決済が正常に動作します`);
-                getSystemStatus();
-            } catch (error) {
-                alert(`❌ エラー: ${error.message}`);
-            }
-        }
-        
-        async function enableSlowMode() {
+        async function enableBackendSlow() {
             try {
                 const response = await fetch('/admin/slow', {
                     method: 'POST',
@@ -623,22 +662,29 @@
                     body: JSON.stringify({ enable: true })
                 });
                 const data = await response.json();
-                alert(`✅ ${data.message}\n\n決済処理が2秒遅くなります`);
+                backendSlowMode = true;
+                alert(`🟡 ${data.message}\n\nAPI処理が2秒遅くなります`);
                 getSystemStatus();
             } catch (error) {
                 alert(`❌ エラー: ${error.message}`);
             }
         }
         
-        async function disableSlowMode() {
+        async function disableBackendIssues() {
             try {
-                const response = await fetch('/admin/slow', {
+                await fetch('/admin/failure', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enable: false })
                 });
-                const data = await response.json();
-                alert(`✅ ${data.message}\n\n決済処理が通常速度に戻ります`);
+                await fetch('/admin/slow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enable: false })
+                });
+                backendErrorMode = false;
+                backendSlowMode = false;
+                alert('🟢 バックエンドAPIが正常化されました');
                 getSystemStatus();
             } catch (error) {
                 alert(`❌ エラー: ${error.message}`);
@@ -653,19 +699,26 @@
                 const response = await fetch('/admin/status');
                 const data = await response.json();
                 
-                const failureStatus = data.failureMode ? '🔴 ON' : '🟢 OFF';
-                const slowStatus = data.slowMode ? '🟡 ON' : '🟢 OFF';
+                const frontendErrorStatus = frontendErrorMode ? '🔴 ON' : '🟢 OFF';
+                const frontendSlowStatus = frontendSlowMode ? '🟠 ON' : '🟢 OFF';
+                const backendErrorStatus = data.failureMode ? '🔴 ON' : '🟢 OFF';
+                const backendSlowStatus = data.slowMode ? '🟡 ON' : '🟢 OFF';
                 const dbStatus = data.database === 'connected' ? '🟢 接続中' : '🔴 切断';
                 
                 statusDiv.innerHTML = `
                     <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
-                        <div style="display: grid; gap: 10px; font-size: 14px;">
-                            <div><strong>決済エラーモード:</strong> ${failureStatus}</div>
-                            <div><strong>スローモード:</strong> ${slowStatus}</div>
+                        <div style="display: grid; gap: 8px; font-size: 13px;">
+                            <div style="font-weight: bold; color: #dc3545; border-bottom: 1px solid #eee; padding-bottom: 5px;">📱 フロントエンド状態</div>
+                            <div><strong>JSエラーモード:</strong> ${frontendErrorStatus}</div>
+                            <div><strong>遅延モード:</strong> ${frontendSlowStatus}</div>
+                            <div style="font-weight: bold; color: #6f42c1; border-bottom: 1px solid #eee; padding: 10px 0 5px 0;">🛠️ バックエンド状態</div>
+                            <div><strong>APIエラーモード:</strong> ${backendErrorStatus}</div>
+                            <div><strong>API遅延モード:</strong> ${backendSlowStatus}</div>
                             <div><strong>データベース:</strong> ${dbStatus}</div>
-                            <div><strong>稼働時間:</strong> ${Math.floor(data.uptime)}秒</div>
-                            <div><strong>メモリ使用量:</strong> ${Math.round(data.memory.heapUsed / 1024 / 1024)}MB</div>
-                            <div><strong>最終更新:</strong> ${new Date(data.timestamp).toLocaleString('ja-JP')}</div>
+                            <div style="border-top: 1px solid #eee; padding-top: 8px; margin-top: 8px;">
+                                <div><strong>稼働時間:</strong> ${Math.floor(data.uptime)}秒</div>
+                                <div><strong>最終更新:</strong> ${new Date(data.timestamp).toLocaleString('ja-JP')}</div>
+                            </div>
                         </div>
                     </div>
                 `;
